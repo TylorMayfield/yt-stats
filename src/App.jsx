@@ -16,7 +16,7 @@ import {
 function App() {
   const [activeTab, setActiveTab] = useState("data");
   const [showRawData, setShowRawData] = useState(false);
-  const [clearedData, setClearingData] = useState(false);
+
   const { stats, loading, error, clearData, refreshStats } = useStats();
 
   console.log("[YT Stats] Raw Stats:", stats);
