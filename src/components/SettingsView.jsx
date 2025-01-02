@@ -8,7 +8,7 @@ export function SettingsView({ clearData, loading }) {
   const handleClearData = () => {
     clearData();
     setShowFeedback(true);
-    setTimeout(() => setShowFeedback(false), 3000); // Hide feedback after 3 seconds
+    setTimeout(() => setShowFeedback(false), 3000);
   };
 
   return (
