@@ -28,7 +28,7 @@ initializeTracking();
 function initializeTracking() {
   if (isInitialized) return;
   console.log("[YT Stats] Initializing video tracking...");
-  
+
   // Wait for DOM to be ready
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
@@ -37,14 +37,14 @@ function initializeTracking() {
   } else {
     setupVideoTracking();
   }
-  
+
   // Listen for page navigation
   document.addEventListener("yt-navigate-finish", handleNavigation);
   document.addEventListener("yt-page-data-updated", handleNavigation);
-  
+
   // Listen for visibility changes
   document.addEventListener("visibilitychange", handleVisibilityChange);
-  
+
   isInitialized = true;
 }
 
@@ -63,21 +63,25 @@ function extractVideoData() {
     // Get video ID from URL
     const url = new URL(window.location.href);
     const videoId = url.searchParams.get("v");
-    
+
     if (!videoId) {
       console.log("[YT Stats] No video ID found in URL");
       return null;
     }
 
     // Get video title
-    const titleElement = document.querySelector("h1.ytd-video-primary-info-renderer");
+    const titleElement = document.querySelector(
+      "h1.ytd-video-primary-info-renderer"
+    );
     if (!titleElement) {
       console.log("[YT Stats] Title element not found");
       return null;
     }
 
     // Get channel name
-    const channelElement = document.querySelector("ytd-video-owner-renderer #channel-name a");
+    const channelElement = document.querySelector(
+      "ytd-video-owner-renderer #channel-name a"
+    );
     if (!channelElement) {
       console.log("[YT Stats] Channel element not found");
       return null;
@@ -91,7 +95,9 @@ function extractVideoData() {
 
     const data = {
       videoId,
+      // @ts-ignore
       title: titleElement.textContent.trim(),
+      // @ts-ignore
       channel: channelElement.textContent.trim(),
       isShorts: window.location.pathname.includes("/shorts/"),
       duration: videoElement.duration || 0,
@@ -114,9 +120,10 @@ function updateWatchTime() {
 
   try {
     const now = Date.now();
-    
+
     // Calculate elapsed time since last update
     const elapsed = (now - currentVideoData.lastPlayTime) / 1000; // Convert to seconds
+    // @ts-ignore
     currentVideoData.lastPlayTime = now;
 
     // Only count if elapsed time is reasonable (less than 30 seconds to account for small delays)
@@ -124,14 +131,17 @@ function updateWatchTime() {
       // Add elapsed time adjusted for playback rate
       const adjustedTime = elapsed * currentVideoData.playbackRate;
       currentVideoData.accumulatedTime += adjustedTime;
-      
+
       // Update current video time
+      // @ts-ignore
       currentVideoData.currentTime = videoElement.currentTime;
 
       // Send update if enough time has passed (5 seconds for regular videos, 1 second for shorts)
       const minDuration = currentVideoData.isShorts ? 1 : 5;
-      const timeSinceLastUpdate = lastUpdateTime ? (now - lastUpdateTime) / 1000 : minDuration;
-      
+      const timeSinceLastUpdate = lastUpdateTime
+        ? (now - lastUpdateTime) / 1000
+        : minDuration;
+
       if (timeSinceLastUpdate >= minDuration) {
         console.log("[YT Stats] Sending watch time update:", {
           elapsed,
@@ -152,7 +162,7 @@ function updateWatchTime() {
           },
           handleMessageResponse
         );
-        
+
         lastUpdateTime = now;
       }
     }
@@ -161,6 +171,7 @@ function updateWatchTime() {
   }
 }
 
+// @ts-ignore
 function handleMessageResponse(response) {
   if (chrome.runtime.lastError) {
     console.error("[YT Stats] Message error:", chrome.runtime.lastError);
@@ -182,7 +193,10 @@ function handleVideoStateChange() {
   }
 
   // Only start tracking if it's a new video or if we don't have a startTime
-  if (!currentVideoData.startTime || currentVideoData.videoId !== videoData.videoId) {
+  if (
+    !currentVideoData.startTime ||
+    currentVideoData.videoId !== videoData.videoId
+  ) {
     console.log("[YT Stats] New video detected");
 
     if (currentVideoData.startTime) {
@@ -194,8 +208,10 @@ function handleVideoStateChange() {
 
     currentVideoData = {
       ...videoData,
+      // @ts-ignore
       startTime: Date.now(),
       accumulatedTime: 0,
+      // @ts-ignore
       lastPlayTime: videoElement.paused ? null : Date.now(),
       playbackRate: videoElement.playbackRate,
     };
@@ -212,11 +228,12 @@ function handleVideoStateChange() {
       },
       handleMessageResponse
     );
-    
+
     lastUpdateTime = null;
   } else if (!videoElement.paused && !currentVideoData.lastPlayTime) {
     // Video is playing but we're not tracking it
     console.log("[YT Stats] Resuming tracking of playing video");
+    // @ts-ignore
     currentVideoData.lastPlayTime = Date.now();
     lastUpdateTime = null;
   }
@@ -240,6 +257,7 @@ function removeVideoEventListeners(videoElement) {
 
 function handleVideoPlay() {
   console.log("[YT Stats] Video played");
+  // @ts-ignore
   currentVideoData.lastPlayTime = Date.now();
 }
 
@@ -261,6 +279,7 @@ function handleVideoSeeking() {
   console.log("[YT Stats] Video seeking");
   if (currentVideoData.lastPlayTime) {
     updateWatchTime();
+    // @ts-ignore
     currentVideoData.lastPlayTime = Date.now();
   }
 }
@@ -268,7 +287,7 @@ function handleVideoSeeking() {
 function handleVisibilityChange() {
   console.log("[YT Stats] Visibility changed:", document.visibilityState);
   const videoElement = document.querySelector("video");
-  
+
   if (!videoElement || !currentVideoData.startTime) {
     return;
   }
@@ -276,11 +295,13 @@ function handleVisibilityChange() {
   if (document.visibilityState === "hidden") {
     // Store the current time when going to background
     if (!videoElement.paused) {
+      // @ts-ignore
       currentVideoData.lastPlayTime = Date.now();
     }
   } else {
     // Update accumulated time when coming back to foreground
     if (!videoElement.paused) {
+      // @ts-ignore
       currentVideoData.lastPlayTime = Date.now();
       lastUpdateTime = null; // Force an immediate update
     }
@@ -371,6 +392,7 @@ function setupVideoObserver() {
     for (const mutation of mutations) {
       // Check added nodes for video element
       for (const node of mutation.addedNodes) {
+        // @ts-ignore
         if (node.nodeName === "VIDEO" || node.querySelector?.("video")) {
           console.log("[YT Stats] Video element found via observer");
           videoObserver.disconnect();
@@ -414,15 +436,15 @@ function setupVideoTracking() {
 }
 
 function formatTime(seconds) {
-  if (!seconds || isNaN(seconds)) return '0m';
-  
+  if (!seconds || isNaN(seconds)) return "0m";
+
   seconds = Math.round(seconds);
-  
+
   if (seconds < 60) return `${seconds}s`;
-  
+
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  
+
   if (hours === 0) return `${minutes}m`;
   return `${hours}h ${minutes}m`;
 }

@@ -36,104 +36,83 @@ let skipActiveTab = false;
 let activeTimers = {};
 
 // Main listener for all runtime messages
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("[YT Stats Background] Received message:", message);
 
-  switch (message.type) {
-    case "VIDEO_START":
-      try {
-        await handleVideoStart(message.data);
-        sendResponse({ success: true });
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
+  // Handle async operations
+  const handleAsync = async () => {
+    try {
+      switch (message.type) {
+        case "VIDEO_START":
+          await handleVideoStart(message.data);
+          return { success: true };
+
+        case "VIDEO_END":
+          await handleVideoEnd(message.data);
+          return { success: true };
+
+        case "VIDEO_UPDATE":
+          await handleVideoUpdate(message.data);
+          return { success: true };
+
+        case "GET_STATS":
+          return await getWatchTimeStats();
+
+        case "getActiveTimers":
+          return activeTimers;
+
+        case "setSkipActiveTab":
+          skipActiveTab = message.value;
+          await chrome.storage.local.set({ skipActiveTab });
+          return { success: true };
+
+        case "getSkipActiveTab":
+          const result = await chrome.storage.local.get("skipActiveTab");
+          return result.skipActiveTab || false;
+
+        case "setInterval":
+          await startTimer(message.tabId, message.interval);
+          return { success: true };
+
+        case "removeTimer":
+          if (activeTimers[message.tabId]) {
+            clearInterval(activeTimers[message.tabId].timerId);
+            delete activeTimers[message.tabId];
+            await chrome.storage.local.set({ activeTimers });
+            broadcastTimerUpdate();
+            return { success: true };
+          }
+
+        case "pause":
+          if (activeTimers[message.tabId]) {
+            clearInterval(activeTimers[message.tabId].timerId);
+            activeTimers[message.tabId].isPaused = true;
+            await chrome.storage.local.set({ activeTimers });
+            broadcastTimerUpdate();
+            return { success: true };
+          }
+
+        case "resume":
+          if (activeTimers[message.tabId]) {
+            startTimer(message.tabId, activeTimers[message.tabId].interval);
+            return { success: true };
+          }
+
+        default:
+          console.warn("[YT Stats Background] Unknown message type:", message.type);
+          return { success: false, error: "Unknown message type" };
       }
-      break;
+    } catch (error) {
+      console.error("[YT Stats Background] Error handling message:", error);
+      return { success: false, error: error.message };
+    }
+  };
 
-    case "VIDEO_END":
-      try {
-        await handleVideoEnd(message.data);
-        sendResponse({ success: true });
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
-      }
-      break;
+  // Process async operation and send response
+  handleAsync().then(sendResponse);
 
-    case "VIDEO_UPDATE":
-      try {
-        await handleVideoUpdate(message.data);
-        sendResponse({ success: true });
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
-      }
-      break;
-
-    case "GET_STATS":
-      try {
-        const stats = await getWatchTimeStats();
-        sendResponse(stats);
-      } catch (error) {
-        sendResponse({ error: error.message });
-      }
-      break;
-
-    case "getActiveTimers":
-      sendResponse(activeTimers);
-      break;
-
-    case "setSkipActiveTab":
-      skipActiveTab = message.value;
-      chrome.storage.local.set({ skipActiveTab });
-      sendResponse({ success: true });
-      break;
-
-    case "getSkipActiveTab":
-      chrome.storage.local.get("skipActiveTab", (result) => {
-        sendResponse(result.skipActiveTab || false);
-      });
-      break;
-
-    case "setInterval":
-      try {
-        await startTimer(message.tabId, message.interval);
-        sendResponse({ success: true });
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
-      }
-      break;
-
-    case "removeTimer":
-      if (activeTimers[message.tabId]) {
-        clearInterval(activeTimers[message.tabId].timerId);
-        delete activeTimers[message.tabId];
-        chrome.storage.local.set({ activeTimers });
-        broadcastTimerUpdate();
-        sendResponse({ success: true });
-      }
-      break;
-
-    case "pause":
-      if (activeTimers[message.tabId]) {
-        clearInterval(activeTimers[message.tabId].timerId);
-        activeTimers[message.tabId].isPaused = true;
-        chrome.storage.local.set({ activeTimers });
-        broadcastTimerUpdate();
-        sendResponse({ success: true });
-      }
-      break;
-
-    case "resume":
-      if (activeTimers[message.tabId]) {
-        startTimer(message.tabId, activeTimers[message.tabId].interval);
-        sendResponse({ success: true });
-      }
-      break;
-
-    default:
-      sendResponse({ success: false, error: "Unknown message type" });
-      break;
-  }
-
-  return true; // Keep the message channel open for async response
+  // Return true to indicate we'll send response asynchronously
+  return true;
 });
 
 async function handleVideoStart(data) {
@@ -232,7 +211,7 @@ const startTimer = async (tabId, interval) => {
       url: tab.url,
     };
 
-    chrome.storage.local.set({ activeTimers });
+    await chrome.storage.local.set({ activeTimers });
     broadcastTimerUpdate();
   } catch (error) {
     console.error("Error starting timer:", error);
@@ -252,7 +231,7 @@ const refreshTab = async (tabId) => {
   chrome.tabs.reload(tabId);
   if (activeTimers[tabId]) {
     activeTimers[tabId].lastRefresh = Date.now();
-    chrome.storage.local.set({ activeTimers });
+    await chrome.storage.local.set({ activeTimers });
     broadcastTimerUpdate();
   }
 };
